@@ -1,0 +1,53 @@
+{
+  "name": "@huyhoangnhh98/cc2ag",
+  "version": "1.2.0",
+  "description": "Convert Claude Code configurations to Antigravity format",
+  "main": "dist/index.js",
+  "bin": {
+    "cc2ag": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/index.js",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "claude-code",
+    "antigravity",
+    "gemini",
+    "converter",
+    "cli"
+  ],
+  "author": "hoangnhh98",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/huyhoangnhh98/ck2ag"
+  },
+  "homepage": "https://github.com/huyhoangnhh98/ck2ag#readme",
+  "bugs": {
+    "url": "https://github.com/huyhoangnhh98/ck2ag/issues"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "dependencies": {
+    "chalk": "^5.3.0",
+    "commander": "^12.1.0",
+    "fs-extra": "^11.2.0",
+    "ora": "^8.0.1"
+  },
+  "devDependencies": {
+    "@types/fs-extra": "^11.0.4",
+    "@types/node": "^20.14.0",
+    "typescript": "^5.4.5"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
