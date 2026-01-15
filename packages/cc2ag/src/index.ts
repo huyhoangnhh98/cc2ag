@@ -11,7 +11,7 @@ const program = new Command();
 program
     .name('cc2ag')
     .description('Convert Claude Code configurations to Antigravity format')
-    .version('1.2.2');
+    .version('1.2.3');
 
 program
     .command('global')
