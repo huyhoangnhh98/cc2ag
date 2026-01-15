@@ -11,7 +11,7 @@ const program = new Command();
 program
     .name('cc2ag')
     .description('Convert Claude Code configurations to Antigravity format')
-    .version('1.2.0');
+    .version('1.2.2');
 
 program
     .command('global')
@@ -21,7 +21,7 @@ program
     .option('--verbose', 'Show detailed output')
     .action(async (options) => {
         console.log(chalk.cyan('╔════════════════════════════════════════════════════════════╗'));
-        console.log(chalk.cyan('║     ck2ag: Claude Code → Antigravity Converter             ║'));
+        console.log(chalk.cyan('║     cc2ag: Claude Code → Antigravity Converter             ║'));
         console.log(chalk.cyan('╚════════════════════════════════════════════════════════════╝'));
         console.log('');
         await convertGlobal(options);
@@ -36,7 +36,7 @@ program
     .option('--clean', 'Clean target directories before converting')
     .action(async (options) => {
         console.log(chalk.cyan('╔════════════════════════════════════════════════════════════╗'));
-        console.log(chalk.cyan('║     ck2ag: Claude Code → Antigravity Converter             ║'));
+        console.log(chalk.cyan('║     cc2ag: Claude Code → Antigravity Converter             ║'));
         console.log(chalk.cyan('╚════════════════════════════════════════════════════════════╝'));
         console.log('');
         await convertProject(options);
@@ -51,7 +51,7 @@ program
     .option('--clean', 'Clean target directories before converting')
     .action(async (options) => {
         console.log(chalk.cyan('╔════════════════════════════════════════════════════════════╗'));
-        console.log(chalk.cyan('║     ck2ag: Claude Code → Antigravity Converter             ║'));
+        console.log(chalk.cyan('║     cc2ag: Claude Code → Antigravity Converter             ║'));
         console.log(chalk.cyan('╚════════════════════════════════════════════════════════════╝'));
         console.log('');
         await convertBoth(options);

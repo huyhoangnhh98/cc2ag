@@ -1,6 +1,6 @@
 {
   "name": "@huyhoangnhh98/cc2ag",
-  "version": "1.2.0",
+  "version": "1.2.2",
   "description": "Convert Claude Code configurations to Antigravity format",
   "main": "dist/index.js",
   "bin": {
@@ -23,11 +23,11 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/huyhoangnhh98/ck2ag"
+    "url": "https://github.com/huyhoangnhh98/cc2ag"
   },
-  "homepage": "https://github.com/huyhoangnhh98/ck2ag#readme",
+  "homepage": "https://github.com/huyhoangnhh98/cc2ag#readme",
   "bugs": {
-    "url": "https://github.com/huyhoangnhh98/ck2ag/issues"
+    "url": "https://github.com/huyhoangnhh98/cc2ag/issues"
   },
   "engines": {
     "node": ">=18.0.0"
