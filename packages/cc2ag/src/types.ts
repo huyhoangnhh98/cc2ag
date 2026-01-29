@@ -4,6 +4,8 @@ export interface ConvertOptions {
     verbose?: boolean;
     globalSkills?: boolean;
     clean?: boolean;
+    fresh?: boolean;  // Clean and convert fresh (removes existing)
+    yes?: boolean;    // Skip confirmation prompts
 }
 
 export interface SkillInfo {

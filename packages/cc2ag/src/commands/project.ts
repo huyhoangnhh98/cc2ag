@@ -4,6 +4,7 @@ import ora from 'ora';
 import { ConvertOptions } from '../types.js';
 import { getProjectSource, getProjectTarget } from '../utils/paths.js';
 import { exists, listDirs, listFiles, ensureDir, removeDir } from '../utils/fs.js';
+import { confirm } from '../utils/prompt.js';
 import { convertAllWorkflows } from '../converters/workflow.js';
 import { convertAllSkills, convertAllAgents } from '../converters/skill.js';
 
@@ -17,6 +18,24 @@ export async function convertProject(options: ConvertOptions): Promise<void> {
         console.log(chalk.red('✗ Project Claude Code directory not found: ./.claude'));
         console.log(chalk.yellow('  Make sure you are in a project with .claude/ directory.'));
         return;
+    }
+
+    // Handle --fresh flag (clean + convert with confirmation)
+    if (options.fresh) {
+        console.log(chalk.yellow('⚠ WARNING: --fresh will remove all existing converted content.'));
+        console.log(chalk.yellow(`  Target: ${target.workflows}`));
+        console.log(chalk.yellow(`  Target: ${target.skills}`));
+        console.log('');
+
+        if (!options.yes) {
+            const confirmed = await confirm('Continue?');
+            if (!confirmed) {
+                console.log('Aborted.');
+                return;
+            }
+        }
+
+        options.clean = true; // Enable clean mode
     }
 
     // Clean target directories if --clean flag is set
@@ -35,9 +54,10 @@ export async function convertProject(options: ConvertOptions): Promise<void> {
 
     spinner.succeed(`Found ${skillNames.length} skills, ${agentNames.length} agents`);
 
-    // Convert workflows
-    const workflowSpinner = ora('Converting workflows...').start();
+    // Convert workflows (now includes user-invocable skills)
+    const workflowSpinner = ora('Converting commands + skills to workflows...').start();
     let oversizedWorkflows: string[] = [];
+    let skippedSkills: string[] = [];
     try {
         await ensureDir(target.workflows);
         const workflowResult = await convertAllWorkflows({
@@ -48,9 +68,11 @@ export async function convertProject(options: ConvertOptions): Promise<void> {
             context: 'project',
             dryRun: options.dryRun,
             verbose: options.verbose,
+            skillsPath: source.skills, // NEW: include skills as workflow sources
         });
         workflowSpinner.succeed(`${workflowResult.count} workflows → ${target.workflows}`);
         oversizedWorkflows = workflowResult.oversizedFiles;
+        skippedSkills = workflowResult.skippedSkills;
     } catch (error) {
         workflowSpinner.fail('Failed to convert workflows');
         if (options.verbose) console.error(error);
@@ -111,5 +133,11 @@ export async function convertProject(options: ConvertOptions): Promise<void> {
             console.log(chalk.yellow(`   - ${file}`));
         }
         console.log(chalk.yellow('   Consider refactoring large workflows into smaller skill references.'));
+    }
+
+    // Display skipped skills info
+    if (skippedSkills.length > 0 && options.verbose) {
+        console.log('');
+        console.log(chalk.gray(`ℹ Skipped ${skippedSkills.length} non-user-invocable skills`));
     }
 }

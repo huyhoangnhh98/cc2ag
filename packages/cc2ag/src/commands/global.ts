@@ -4,6 +4,7 @@ import ora from 'ora';
 import { ConvertOptions } from '../types.js';
 import { getGlobalSource, getGlobalTarget } from '../utils/paths.js';
 import { exists, listDirs, listFiles, ensureDir, removeDir } from '../utils/fs.js';
+import { confirm } from '../utils/prompt.js';
 import { convertAllWorkflows } from '../converters/workflow.js';
 import { convertAllSkills, convertAllAgents } from '../converters/skill.js';
 
@@ -23,6 +24,24 @@ export async function convertGlobal(options: ConvertOptions): Promise<void> {
         return;
     }
 
+    // Handle --fresh flag (clean + convert with confirmation)
+    if (options.fresh) {
+        console.log(chalk.yellow('⚠ WARNING: --fresh will remove all existing converted content.'));
+        console.log(chalk.yellow(`  Target: ${globalTarget.workflows}`));
+        console.log(chalk.yellow(`  Target: ${globalTarget.skills}`));
+        console.log('');
+
+        if (!options.yes) {
+            const confirmed = await confirm('Continue?');
+            if (!confirmed) {
+                console.log('Aborted.');
+                return;
+            }
+        }
+
+        options.clean = true; // Enable clean mode
+    }
+
     // Clean target directories if --clean flag is set
     if (options.clean) {
         const cleanSpinner = ora('Cleaning global target directories...').start();
@@ -40,8 +59,10 @@ export async function convertGlobal(options: ConvertOptions): Promise<void> {
     spinner.succeed(`Found ${skillNames.length} skills, ${agentNames.length} agents`);
 
     // Convert workflows to global (always use global context for path replacement)
-    const workflowSpinner = ora('Converting workflows to global...').start();
+    // Now also includes user-invocable skills as workflows
+    const workflowSpinner = ora('Converting commands + skills to workflows...').start();
     let oversizedWorkflows: string[] = [];
+    let skippedSkills: string[] = [];
     try {
         await ensureDir(globalTarget.workflows);
         const workflowResult = await convertAllWorkflows({
@@ -52,9 +73,11 @@ export async function convertGlobal(options: ConvertOptions): Promise<void> {
             context: 'global',
             dryRun: options.dryRun,
             verbose: options.verbose,
+            skillsPath: source.skills, // NEW: include skills as workflow sources
         });
         workflowSpinner.succeed(`${workflowResult.count} workflows → ${globalTarget.workflows}`);
         oversizedWorkflows = workflowResult.oversizedFiles;
+        skippedSkills = workflowResult.skippedSkills;
     } catch (error) {
         workflowSpinner.fail('Failed to convert workflows');
         if (options.verbose) console.error(error);
@@ -115,5 +138,11 @@ export async function convertGlobal(options: ConvertOptions): Promise<void> {
             console.log(chalk.yellow(`   - ${file}`));
         }
         console.log(chalk.yellow('   Consider refactoring large workflows into smaller skill references.'));
+    }
+
+    // Display skipped skills info
+    if (skippedSkills.length > 0 && options.verbose) {
+        console.log('');
+        console.log(chalk.gray(`ℹ Skipped ${skippedSkills.length} non-user-invocable skills`));
     }
 }
