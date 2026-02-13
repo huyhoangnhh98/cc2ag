@@ -6,6 +6,8 @@ export interface ConvertOptions {
     clean?: boolean;
     fresh?: boolean;  // Clean and convert fresh (removes existing)
     yes?: boolean;    // Skip confirmation prompts
+    installExtension?: boolean;  // Install Antigravity SubAgents extension
+    skipExtension?: boolean;     // Skip extension installation
 }
 
 export interface SkillInfo {

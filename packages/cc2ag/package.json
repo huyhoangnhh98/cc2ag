@@ -36,7 +36,9 @@
   },
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "package.json",
+    "package-lock.json"
   ],
   "dependencies": {
     "chalk": "^4.1.2",

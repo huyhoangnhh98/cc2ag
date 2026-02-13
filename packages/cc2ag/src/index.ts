@@ -21,6 +21,8 @@ program
     .option('--verbose', 'Show detailed output')
     .option('--clean', 'Clean target directories before converting')
     .option('--fresh', 'Clean and convert fresh (removes existing)')
+    .option('--install-extension', 'Install Antigravity SubAgents extension')
+    .option('--skip-extension', 'Skip extension installation check')
     .option('-y, --yes', 'Skip confirmation prompts')
     .action(async (options) => {
         console.log(chalk.cyan('╔════════════════════════════════════════════════════════════╗'));
@@ -55,6 +57,8 @@ program
     .option('--verbose', 'Show detailed output')
     .option('--clean', 'Clean target directories before converting')
     .option('--fresh', 'Clean and convert fresh (removes existing)')
+    .option('--install-extension', 'Install Antigravity SubAgents extension')
+    .option('--skip-extension', 'Skip extension installation check')
     .option('-y, --yes', 'Skip confirmation prompts')
     .action(async (options) => {
         console.log(chalk.cyan('╔════════════════════════════════════════════════════════════╗'));
