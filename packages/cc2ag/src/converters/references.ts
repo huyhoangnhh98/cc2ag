@@ -92,6 +92,12 @@ export function updateReferences(
     // Match patterns like /ipa:validate, /plan:hard, /docs:sync, etc.
     result = result.replace(/\/([a-z]+(?:-[a-z]+)*):([a-z]+(?:-[a-z]+)*)/g, '/$1-$2');
 
+    // Replace ck:[skill] with skill-[skill]
+    result = result.replace(/ck:([a-z0-9-]+)/g, 'skill-$1');
+
+    // Replace /ck-[command] with /[command]
+    result = result.replace(/\/ck-([a-z0-9-]+)/g, '/$1');
+
     return result;
 }
 

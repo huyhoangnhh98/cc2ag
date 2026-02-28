@@ -1,11 +1,9 @@
 import path from 'path';
 import chalk from 'chalk';
-import { readFile, writeFile, listDirs, ensureDir, exists } from '../utils/fs.js';
+import { readFile, writeFile, ensureDir, exists } from '../utils/fs.js';
+import { updateReferences } from './references.js';
 
-// Antigravity has a 12000 character limit for workflow content
-const WORKFLOW_CHAR_LIMIT = 12000;
-
-export interface ThinWorkflowOptions {
+export interface WorkflowOptions {
     skillsPath: string;    // source skills/ directory
     targetPath: string;    // target workflows/ directory
     skillNames: string[];
@@ -19,7 +17,6 @@ export interface ThinWorkflowOptions {
 interface SkillFrontmatter {
     name?: string;
     description?: string;
-    userInvocable?: boolean; // default true - if false, skip workflow conversion
 }
 
 /**
@@ -27,7 +24,7 @@ interface SkillFrontmatter {
  * Returns null if no valid frontmatter found
  */
 function parseSkillFrontmatter(content: string): SkillFrontmatter {
-    const result: SkillFrontmatter = { userInvocable: true }; // default
+    const result: SkillFrontmatter = {};
 
     if (!content.trimStart().startsWith('---')) return result;
 
@@ -49,9 +46,8 @@ function parseSkillFrontmatter(content: string): SkillFrontmatter {
         if (keyTrimmed === 'name') {
             result.name = value;
         } else if (keyTrimmed === 'description') {
-            result.description = value;
-        } else if (keyTrimmed === 'user-invocable') {
-            result.userInvocable = value.toLowerCase() !== 'false';
+            // Remove surrounding quotes if they exist
+            result.description = value.replace(/^["'](.*)["']$/, '$1');
         }
     }
 
@@ -59,22 +55,41 @@ function parseSkillFrontmatter(content: string): SkillFrontmatter {
 }
 
 /**
- * Generate thin workflow wrappers from user-invocable skills.
- * Each wrapper just activates the corresponding skill.
+ * Remove frontmatter from markdown content
  */
-export async function generateThinWorkflows(options: ThinWorkflowOptions): Promise<{
+function stripFrontmatter(content: string): string {
+    if (!content.trimStart().startsWith('---')) return content;
+
+    const firstDelim = content.indexOf('---');
+    const secondDelim = content.indexOf('---', firstDelim + 3);
+    if (secondDelim === -1) return content;
+
+    return content.substring(secondDelim + 3).trimStart();
+}
+
+/**
+ * Target workflow names to generate
+ */
+const TARGET_WORKFLOWS = ['brainstorm', 'plan', 'cook'];
+
+/**
+ * Generate specific full workflows (brainstorm, plan, cook).
+ * Each wrapper embeds the full logic of the corresponding skill.
+ */
+export async function generateWorkflows(options: WorkflowOptions): Promise<{
     count: number;
     skippedSkills: string[];
 }> {
-    const { skillsPath, targetPath, dryRun, verbose } = options;
+    const { skillsPath, targetPath, skillNames, agentNames, context, dryRun, verbose } = options;
 
     await ensureDir(targetPath);
 
-    const skillDirs = await listDirs(skillsPath);
     let count = 0;
     const skippedSkills: string[] = [];
 
-    for (const skillDir of skillDirs) {
+    for (const workflowName of TARGET_WORKFLOWS) {
+        // Look for the corresponding skill in the source directory
+        const skillDir = workflowName; // We expect skill folder to match workflow name
         const skillMdPath = path.join(skillsPath, skillDir, 'SKILL.md');
         const skillMdLowerPath = path.join(skillsPath, skillDir, 'skill.md');
 
@@ -85,38 +100,47 @@ export async function generateThinWorkflows(options: ThinWorkflowOptions): Promi
             skillMd = skillMdLowerPath;
         }
 
-        if (!skillMd) continue;
+        if (!skillMd) {
+            if (verbose) {
+                console.log(chalk.gray(`  ○ Skipping workflow ${workflowName} (source skill not found)`));
+            }
+            skippedSkills.push(workflowName);
+            continue;
+        }
 
         try {
-            const content = await readFile(skillMd);
+            let content = await readFile(skillMd);
             const frontmatter = parseSkillFrontmatter(content);
+            const bodyContent = stripFrontmatter(content);
 
-            // Skip non-user-invocable skills
-            if (frontmatter.userInvocable === false) {
-                skippedSkills.push(skillDir);
-                if (verbose) {
-                    console.log(chalk.gray(`  ○ Skipping ${skillDir} (user-invocable: false)`));
-                }
-                continue;
-            }
+            // Update references in the body content to convert ClaudeKit syntax to Antigravity
+            const updatedBodyContent = updateReferences(bodyContent, skillNames, agentNames, context);
 
             const description = frontmatter.description || `Workflow converted from Claude Code skill: ${skillDir}`;
-            const thinContent = `---\ndescription: ${description}\n---\nActivate \`skill-${skillDir}\` skill.\n`;
 
-            const targetFile = path.join(targetPath, `${skillDir}.md`);
+            // Generate workflow file embedding the full skill logic
+            const workflowContent = `---
+description: "${description}"
+---
+
+${updatedBodyContent}
+`;
+
+            // Write to workflow-{name}.md
+            const targetFile = path.join(targetPath, `workflow-${workflowName}.md`);
 
             if (!dryRun) {
-                await writeFile(targetFile, thinContent);
+                await writeFile(targetFile, workflowContent);
             }
 
             count++;
 
             if (verbose) {
-                console.log(`  ${chalk.green('✓')} ${chalk.cyan('[skill]')} ${skillDir} → ${skillDir}.md`);
+                console.log(`  ${chalk.green('✓')} ${chalk.cyan('[workflow]')} ${workflowName} → workflow-${workflowName}.md`);
             }
         } catch (error) {
             if (verbose) {
-                console.log(chalk.red(`  ✗ Error reading skill ${skillDir}: ${error}`));
+                console.log(chalk.red(`  ✗ Error generating workflow ${workflowName}: ${error}`));
             }
         }
     }
