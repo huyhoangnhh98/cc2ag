@@ -1,5 +1,9 @@
 // Path replacement patterns based on context (global vs project)
 const GLOBAL_PATH_REPLACEMENTS: [string, string][] = [
+    ['$HOME/.claude/CLAUDE.md', '$HOME/.gemini/GEMINI.md'],
+    ['~/.claude/CLAUDE.md', '~/.gemini/GEMINI.md'],
+    ['$HOME/.claude/workflows', '$HOME/.gemini/antigravity/rules'],
+    ['~/.claude/workflows', '~/.gemini/antigravity/rules'],
     ['$HOME/.claude/skills', '$HOME/.gemini/antigravity/skills'],
     ['~/.claude/skills', '~/.gemini/antigravity/skills'],
     ['$HOME/.claude/agents', '$HOME/.gemini/antigravity/skills'],
@@ -9,6 +13,8 @@ const GLOBAL_PATH_REPLACEMENTS: [string, string][] = [
 ];
 
 const PROJECT_PATH_REPLACEMENTS: [string, string][] = [
+    ['.claude/CLAUDE.md', '.agent/GEMINI.md'],
+    ['.claude/workflows', '.agent/rules'],
     ['$HOME/.claude/skills', '.agent/skills'],
     ['~/.claude/skills', '.agent/skills'],
     ['$HOME/.claude/agents', '.agent/skills'],

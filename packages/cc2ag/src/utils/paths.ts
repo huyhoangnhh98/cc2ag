@@ -11,26 +11,28 @@ export const PATHS = {
     projectAgentDir: '.agent',
 
     // Subdirectories
-    commands: 'commands',
     agents: 'agents',
     skills: 'skills',
     workflows: 'workflows',
+    rules: 'rules',
     globalWorkflows: 'global_workflows',
 };
 
 export function getGlobalSource() {
     return {
-        commands: path.join(PATHS.globalClaudeDir, PATHS.commands),
+        workflows: path.join(PATHS.globalClaudeDir, PATHS.workflows),
         agents: path.join(PATHS.globalClaudeDir, PATHS.agents),
         skills: path.join(PATHS.globalClaudeDir, PATHS.skills),
+        claudeMd: path.join(PATHS.globalClaudeDir, 'CLAUDE.md'),
     };
 }
 
 export function getProjectSource() {
     return {
-        commands: path.join(PATHS.projectClaudeDir, PATHS.commands),
+        workflows: path.join(PATHS.projectClaudeDir, PATHS.workflows),
         agents: path.join(PATHS.projectClaudeDir, PATHS.agents),
         skills: path.join(PATHS.projectClaudeDir, PATHS.skills),
+        claudeMd: path.join(PATHS.projectClaudeDir, 'CLAUDE.md'),
     };
 }
 
@@ -38,6 +40,8 @@ export function getGlobalTarget() {
     return {
         workflows: path.join(PATHS.globalAntigravityDir, PATHS.globalWorkflows),
         skills: path.join(PATHS.globalAntigravityDir, PATHS.skills),
+        rules: path.join(PATHS.globalAntigravityDir, PATHS.rules),
+        geminiMd: path.join(PATHS.globalAntigravityDir, '..', 'GEMINI.md'),
     };
 }
 
@@ -45,5 +49,7 @@ export function getProjectTarget() {
     return {
         workflows: path.join(PATHS.projectAgentDir, PATHS.workflows),
         skills: path.join(PATHS.projectAgentDir, PATHS.skills),
+        rules: path.join(PATHS.projectAgentDir, PATHS.rules),
+        geminiMd: path.join(PATHS.projectAgentDir, 'GEMINI.md'),
     };
 }

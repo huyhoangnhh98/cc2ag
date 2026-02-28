@@ -11,8 +11,8 @@ export async function convertBoth(options: ConvertOptions): Promise<void> {
     const globalSource = getGlobalSource();
     const projectSource = getProjectSource();
 
-    const hasGlobal = await exists(path.dirname(globalSource.commands));
-    const hasProject = await exists(path.dirname(projectSource.commands));
+    const hasGlobal = await exists(path.dirname(globalSource.workflows));
+    const hasProject = await exists(path.dirname(projectSource.workflows));
 
     if (!hasGlobal && !hasProject) {
         console.log(chalk.red('✗ No Claude Code sources found!'));
@@ -29,10 +29,12 @@ export async function convertBoth(options: ConvertOptions): Promise<void> {
         if (hasGlobal) {
             console.log(chalk.yellow(`  Target: ${globalTarget.workflows}`));
             console.log(chalk.yellow(`  Target: ${globalTarget.skills}`));
+            console.log(chalk.yellow(`  Target: ${globalTarget.rules}`));
         }
         if (hasProject) {
             console.log(chalk.yellow(`  Target: ${projectTarget.workflows}`));
             console.log(chalk.yellow(`  Target: ${projectTarget.skills}`));
+            console.log(chalk.yellow(`  Target: ${projectTarget.rules}`));
         }
         console.log('');
 

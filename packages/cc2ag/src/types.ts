@@ -8,6 +8,7 @@ export interface ConvertOptions {
     yes?: boolean;    // Skip confirmation prompts
     installExtension?: boolean;  // Install Antigravity SubAgents extension
     skipExtension?: boolean;     // Skip extension installation
+    native?: boolean;  // Use Native Agent Manager instead of SubAgents Extension
 }
 
 export interface SkillInfo {
@@ -26,5 +27,17 @@ export interface ConversionResult {
     workflowsConverted: number;
     skillsConverted: number;
     agentsConverted: number;
+    rulesConverted: number;
+    claudeMdConverted: boolean;
     errors: string[];
+}
+
+export interface RulesConvertOptions {
+    sourcePath: string;
+    targetPath: string;
+    skillNames: string[];
+    agentNames: string[];
+    context: 'global' | 'project';
+    dryRun?: boolean;
+    verbose?: boolean;
 }

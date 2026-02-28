@@ -20,6 +20,62 @@ export interface SubAgentConfig {
 }
 
 /**
+ * Convert a single agent .md file to skill format (instead of SubAgent)
+ * This creates a skill that runs in the same session
+ */
+export async function convertAgentToSkill(
+    sourceFile: string,
+    targetFolder: string,
+    options: { dryRun?: boolean; verbose?: boolean } = {}
+): Promise<void> {
+    const agentName = path.basename(sourceFile, '.md');
+    const content = await readFile(sourceFile);
+
+    // Remove existing frontmatter
+    const body = content.replace(/^---[\s\S]*?---\s*/, '');
+
+    // Create SKILL.md with skill frontmatter
+    const skillContent = `---
+name: skill-${agentName}
+description: [CK] ${agentName} - converted from Claude Code agent
+---
+
+${body}
+`;
+
+    if (!options.dryRun) {
+        await ensureDir(targetFolder);
+        await writeFile(path.join(targetFolder, 'SKILL.md'), skillContent);
+
+        if (options.verbose) {
+            console.log(`  ✓ ${agentName} → skill-${agentName}/SKILL.md`);
+        }
+    }
+}
+
+/**
+ * Convert all agents to skill format
+ */
+export async function convertAllAgentsToSkills(
+    options: { sourcePath: string; targetPath: string; dryRun?: boolean; verbose?: boolean }
+): Promise<number> {
+    const { sourcePath, targetPath, dryRun, verbose } = options;
+    const agentFiles = await listFiles(sourcePath, '.md');
+    let count = 0;
+
+    for (const file of agentFiles) {
+        const agentName = path.basename(file, '.md');
+        const sourceFile = path.join(sourcePath, file);
+        const targetFolder = path.join(targetPath, `skill-${agentName}`);
+
+        await convertAgentToSkill(sourceFile, targetFolder, { dryRun, verbose });
+        count++;
+    }
+
+    return count;
+}
+
+/**
  * Parse YAML frontmatter from agent content
  */
 function parseAgentFrontmatter(content: string): Partial<SubAgentConfig> {

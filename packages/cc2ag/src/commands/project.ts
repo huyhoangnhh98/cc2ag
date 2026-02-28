@@ -5,7 +5,8 @@ import { ConvertOptions } from '../types.js';
 import { getProjectSource, getProjectTarget } from '../utils/paths.js';
 import { exists, listDirs, listFiles, ensureDir, removeDir } from '../utils/fs.js';
 import { confirm } from '../utils/prompt.js';
-import { convertAllWorkflows } from '../converters/workflow.js';
+import { generateThinWorkflows } from '../converters/workflow.js';
+import { convertAllRules, getClaudeMdContent, writeGeminiMd } from '../converters/rules.js';
 import { convertAllSkills, convertAllAgents as convertAllClaudeKitSkills } from '../converters/skill.js';
 import { convertAllAgents as convertAllClaudeKitSubAgents } from '../converters/subagent.js';
 import { ensureExtensionInstalled } from '../utils/extension-installer.js';
@@ -16,7 +17,7 @@ export async function convertProject(options: ConvertOptions): Promise<void> {
     const target = getProjectTarget();
 
     // Check source exists
-    const sourceExists = await exists(path.dirname(source.commands));
+    const sourceExists = await exists(path.dirname(source.workflows));
     if (!sourceExists) {
         console.log(chalk.red('✗ Project Claude Code directory not found: ./.claude'));
         console.log(chalk.yellow('  Make sure you are in a project with .claude/ directory.'));
@@ -28,6 +29,7 @@ export async function convertProject(options: ConvertOptions): Promise<void> {
         console.log(chalk.yellow('⚠ WARNING: --fresh will remove all existing converted content.'));
         console.log(chalk.yellow(`  Target: ${target.workflows}`));
         console.log(chalk.yellow(`  Target: ${target.skills}`));
+        console.log(chalk.yellow(`  Target: ${target.rules}`));
         console.log('');
 
         if (!options.yes) {
@@ -46,7 +48,8 @@ export async function convertProject(options: ConvertOptions): Promise<void> {
         const cleanSpinner = ora('Cleaning target directories...').start();
         await removeDir(target.workflows);
         await removeDir(target.skills);
-        cleanSpinner.succeed('Cleaned .agent/workflows and .agent/skills');
+        await removeDir(target.rules);
+        cleanSpinner.succeed('Cleaned .agent/workflows, .agent/skills, and .agent/rules');
     }
 
     // Collect skill and agent names for reference updates
@@ -57,27 +60,63 @@ export async function convertProject(options: ConvertOptions): Promise<void> {
 
     spinner.succeed(`Found ${skillNames.length} skills, ${agentNames.length} agents`);
 
-    // Convert workflows (now includes user-invocable skills)
-    const workflowSpinner = ora('Converting commands + skills to workflows...').start();
-    let oversizedWorkflows: string[] = [];
+    // Convert CK workflows → AG rules
+    const rulesSpinner = ora('Converting rules...').start();
+    try {
+        await ensureDir(target.rules);
+        const rulesCount = await convertAllRules({
+            sourcePath: source.workflows,
+            targetPath: target.rules,
+            skillNames,
+            agentNames,
+            context: 'project',
+            dryRun: options.dryRun,
+            verbose: options.verbose,
+        });
+        rulesSpinner.succeed(`${rulesCount} rules → ${target.rules}`);
+    } catch (error) {
+        rulesSpinner.fail('Failed to convert rules');
+        if (options.verbose) console.error(error);
+    }
+
+    // Generate thin workflow wrappers from user-invocable skills
+    const workflowSpinner = ora('Generating workflows...').start();
     let skippedSkills: string[] = [];
     try {
         await ensureDir(target.workflows);
-        const workflowResult = await convertAllWorkflows({
-            sourcePath: source.commands,
+        const workflowResult = await generateThinWorkflows({
+            skillsPath: source.skills,
             targetPath: target.workflows,
             skillNames,
             agentNames,
             context: 'project',
             dryRun: options.dryRun,
             verbose: options.verbose,
-            skillsPath: source.skills, // NEW: include skills as workflow sources
         });
         workflowSpinner.succeed(`${workflowResult.count} workflows → ${target.workflows}`);
-        oversizedWorkflows = workflowResult.oversizedFiles;
         skippedSkills = workflowResult.skippedSkills;
     } catch (error) {
-        workflowSpinner.fail('Failed to convert workflows');
+        workflowSpinner.fail('Failed to generate workflows');
+        if (options.verbose) console.error(error);
+    }
+
+    // Collect GEMINI.md content sections (assembled at the end)
+    const geminiMdSections: string[] = [];
+
+    // Get CLAUDE.md content for GEMINI.md
+    const claudeSpinner = ora('Converting CLAUDE.md → GEMINI.md...').start();
+    try {
+        const claudeContent = await getClaudeMdContent(
+            source.claudeMd, skillNames, agentNames, 'project'
+        );
+        if (claudeContent) {
+            geminiMdSections.push(claudeContent);
+            claudeSpinner.succeed('CLAUDE.md content collected');
+        } else {
+            claudeSpinner.info('No CLAUDE.md found, skipping');
+        }
+    } catch (error) {
+        claudeSpinner.fail('Failed to convert CLAUDE.md');
         if (options.verbose) console.error(error);
     }
 
@@ -167,18 +206,36 @@ export async function convertProject(options: ConvertOptions): Promise<void> {
         if (options.verbose) console.error(error);
     }
 
-    // Generate routing rules
+    // Generate routing rules (collected into GEMINI.md)
     const routingSpinner = ora('Generating routing rules for SubAgents...').start();
     try {
-        const projectGeminiTarget = path.join(process.cwd(), '.agent');
-        await createRoutingFromAgents(
+        const routingContent = await createRoutingFromAgents(
             path.join(process.cwd(), '.subagents'),
-            projectGeminiTarget,
+            path.join(process.cwd(), '.agent'),
             { dryRun: options.dryRun, verbose: options.verbose }
         );
-        routingSpinner.succeed(`Routing rules → ${projectGeminiTarget}/GEMINI.md`);
+        if (routingContent) {
+            geminiMdSections.push(routingContent);
+        }
+        routingSpinner.succeed('Routing rules collected');
     } catch (error) {
         routingSpinner.fail('Failed to generate routing rules');
+        if (options.verbose) console.error(error);
+    }
+
+    // Write final assembled GEMINI.md (CLAUDE.md + routing)
+    const geminiSpinner = ora('Writing GEMINI.md...').start();
+    try {
+        const written = await writeGeminiMd(
+            target.geminiMd, geminiMdSections, options.dryRun
+        );
+        if (written) {
+            geminiSpinner.succeed(`GEMINI.md → ${target.geminiMd}`);
+        } else {
+            geminiSpinner.info('No content for GEMINI.md');
+        }
+    } catch (error) {
+        geminiSpinner.fail('Failed to write GEMINI.md');
         if (options.verbose) console.error(error);
     }
 
@@ -188,6 +245,7 @@ export async function convertProject(options: ConvertOptions): Promise<void> {
     console.log(chalk.green('╚════════════════════════════════════════════════════════════╝'));
     console.log('');
     console.log(chalk.cyan('Output:'));
+    console.log(`  Rules:     ${target.rules}`);
     console.log(`  Workflows: ${target.workflows}`);
     console.log(`  Skills:    ${target.skills} (skill-*, agent-*)`);
     console.log(`  SubAgents: .subagents/ (SubAgent configs)`);
@@ -196,16 +254,6 @@ export async function convertProject(options: ConvertOptions): Promise<void> {
         console.log(`  Extension: Antigravity SubAgents (installed)`);
     } else {
         console.log(`  Extension: Antigravity SubAgents (not installed - run with --install-extension)`);
-    }
-
-    // Display warnings for oversized workflows
-    if (oversizedWorkflows.length > 0) {
-        console.log('');
-        console.log(chalk.yellow('⚠ WARNING: The following workflows exceed Antigravity\'s 12000 character limit:'));
-        for (const file of oversizedWorkflows) {
-            console.log(chalk.yellow(`   - ${file}`));
-        }
-        console.log(chalk.yellow('   Consider refactoring large workflows into smaller skill references.'));
     }
 
     // Display skipped skills info

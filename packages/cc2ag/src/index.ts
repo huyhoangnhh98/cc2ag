@@ -5,6 +5,7 @@ import { convertGlobal } from './commands/global.js';
 import { convertProject } from './commands/project.js';
 import { convertBoth } from './commands/both.js';
 import { uninstall } from './commands/uninstall.js';
+import { createSubAgentsCommand } from './commands/subagents/index.js';
 
 const program = new Command();
 
@@ -23,6 +24,7 @@ program
     .option('--fresh', 'Clean and convert fresh (removes existing)')
     .option('--install-extension', 'Install Antigravity SubAgents extension')
     .option('--skip-extension', 'Skip extension installation check')
+    .option('--native', 'Use Native Agent Manager instead of SubAgents Extension')
     .option('-y, --yes', 'Skip confirmation prompts')
     .action(async (options) => {
         console.log(chalk.cyan('╔════════════════════════════════════════════════════════════╗'));
@@ -59,6 +61,7 @@ program
     .option('--fresh', 'Clean and convert fresh (removes existing)')
     .option('--install-extension', 'Install Antigravity SubAgents extension')
     .option('--skip-extension', 'Skip extension installation check')
+    .option('--native', 'Use Native Agent Manager instead of SubAgents Extension')
     .option('-y, --yes', 'Skip confirmation prompts')
     .action(async (options) => {
         console.log(chalk.cyan('╔════════════════════════════════════════════════════════════╗'));
@@ -69,6 +72,7 @@ program
     });
 
 program
+    .addCommand(createSubAgentsCommand())
     .command('uninstall')
     .description('Remove all cc2ag-generated workflows, skills, and agents')
     .option('--dry-run', 'Preview what would be removed without deleting')

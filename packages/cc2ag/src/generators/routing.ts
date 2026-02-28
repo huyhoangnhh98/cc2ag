@@ -17,7 +17,7 @@ export async function generateRoutingRules(
     agentsConfig: SubAgentConfig[],
     targetPath: string,
     options: { dryRun?: boolean; verbose?: boolean } = {}
-): Promise<void> {
+): Promise<string> {
     const { dryRun, verbose } = options;
 
     // Generate routing rules content
@@ -86,14 +86,11 @@ When user requests testing or validation:
 - Route to: \`subagent-tester\`
 `;
 
-    if (!dryRun) {
-        await ensureDir(targetPath);
-        await writeFile(path.join(targetPath, 'GEMINI.md'), routingContent);
-    }
-
     if (verbose) {
         console.log(`  ✓ Generated routing rules for ${agentsConfig.length} agents`);
     }
+
+    return routingContent;
 }
 
 /**
@@ -103,7 +100,7 @@ export async function createRoutingFromAgents(
     agentsPath: string,
     targetPath: string,
     options: { dryRun?: boolean; verbose?: boolean } = {}
-): Promise<void> {
+): Promise<string> {
     const { dryRun, verbose } = options;
 
     // Check if the agents path exists
@@ -175,8 +172,8 @@ export async function createRoutingFromAgents(
             }
         ];
 
-        await generateRoutingRules(defaultAgents, targetPath, options);
-        return;
+        const content = await generateRoutingRules(defaultAgents, targetPath, options);
+        return content;
     }
 
     // Read all agent files from the agents path
@@ -212,7 +209,7 @@ export async function createRoutingFromAgents(
         }
     }
 
-    await generateRoutingRules(agentConfigs, targetPath, options);
+    return await generateRoutingRules(agentConfigs, targetPath, options);
 }
 
 /**
