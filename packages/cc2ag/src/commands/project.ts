@@ -5,9 +5,9 @@ import { ConvertOptions } from '../types.js';
 import { getProjectSource, getProjectTarget } from '../utils/paths.js';
 import { exists, listDirs, listFiles, ensureDir, removeDir } from '../utils/fs.js';
 import { confirm } from '../utils/prompt.js';
-import { generateWorkflows } from '../converters/workflow.js';
-import { convertAllRules, getClaudeMdContent, writeGeminiMd } from '../converters/rules.js';
+import { convertAllRules, getClaudeMdContent, writeGeminiMd, generateConversionLossNotice } from '../converters/rules.js';
 import { convertAllSkills, convertAllAgents as convertAllClaudeKitSkills } from '../converters/skill.js';
+import { generateHookRules, logHookRulesGuidance } from '../converters/hook-rules.js';
 
 export async function convertProject(options: ConvertOptions): Promise<void> {
     const source = getProjectSource();
@@ -45,8 +45,9 @@ export async function convertProject(options: ConvertOptions): Promise<void> {
         const cleanSpinner = ora('Cleaning target directories...').start();
         await removeDir(target.workflows);
         await removeDir(target.skills);
+        await removeDir(target.agents);
         await removeDir(target.rules);
-        cleanSpinner.succeed('Cleaned .agent/workflows, .agent/skills, and .agent/rules');
+        cleanSpinner.succeed('Cleaned .agent/workflows, .agent/skills, .agent/agents, and .agent/rules');
     }
 
     // Collect skill and agent names for reference updates
@@ -76,24 +77,40 @@ export async function convertProject(options: ConvertOptions): Promise<void> {
         if (options.verbose) console.error(error);
     }
 
-    // Generate workflows (brainstorm, plan, cook)
-    const workflowSpinner = ora('Generating workflows...').start();
-    let skippedSkills: string[] = [];
+    // Convert ClaudeKit agents to dedicated agent folders
+    const agentSpinner = ora('Converting agents...').start();
     try {
-        await ensureDir(target.workflows);
-        const workflowResult = await generateWorkflows({
-            skillsPath: source.skills,
-            targetPath: target.workflows,
+        await ensureDir(target.agents);
+        const agentCount = await convertAllClaudeKitSkills({
+            sourcePath: source.agents,
+            targetPath: target.agents,
             skillNames,
             agentNames,
             context: 'project',
             dryRun: options.dryRun,
             verbose: options.verbose,
         });
-        workflowSpinner.succeed(`${workflowResult.count} workflows → ${target.workflows}`);
-        skippedSkills = workflowResult.skippedSkills;
+        agentSpinner.succeed(`${agentCount} agents → ${target.agents}`);
     } catch (error) {
-        workflowSpinner.fail('Failed to generate workflows');
+        agentSpinner.fail('Failed to convert agents');
+        if (options.verbose) console.error(error);
+    }
+
+    // Generate workflows (brainstorm, plan, cook) - REMOVED
+    // We no longer generate workflows for brainstorm/plan/cook as skills can be called directly
+    let skippedSkills: string[] = [];
+
+    // Generate hook-based rules
+    const hookRulesSpinner = ora('Generating hook-based rules...').start();
+    try {
+        const hookRulesCount = await generateHookRules({
+            targetPath: target.rules,
+            dryRun: options.dryRun,
+            verbose: options.verbose,
+        });
+        hookRulesSpinner.succeed(`${hookRulesCount} hook rules → ${target.rules}`);
+    } catch (error) {
+        hookRulesSpinner.fail('Failed to generate hook rules');
         if (options.verbose) console.error(error);
     }
 
@@ -136,24 +153,8 @@ export async function convertProject(options: ConvertOptions): Promise<void> {
         if (options.verbose) console.error(error);
     }
 
-    // Convert ClaudeKit agents to skills (for compatibility)
-    const agentSpinner = ora('Converting agents...').start();
-    try {
-        await ensureDir(target.skills);
-        const agentCount = await convertAllClaudeKitSkills({
-            sourcePath: source.agents,
-            targetPath: target.skills,
-            skillNames,
-            agentNames,
-            context: 'project',
-            dryRun: options.dryRun,
-            verbose: options.verbose,
-        });
-        agentSpinner.succeed(`${agentCount} agents → ${target.skills}`);
-    } catch (error) {
-        agentSpinner.fail('Failed to convert agents to skills');
-        if (options.verbose) console.error(error);
-    }
+    // Add workflow chain and conversion notes to GEMINI.md
+    geminiMdSections.push(generateConversionLossNotice());
 
     // Write final assembled GEMINI.md (CLAUDE.md + routing)
     const geminiSpinner = ora('Writing GEMINI.md...').start();
@@ -178,12 +179,15 @@ export async function convertProject(options: ConvertOptions): Promise<void> {
     console.log('');
     console.log(chalk.cyan('Output:'));
     console.log(`  Rules:     ${target.rules}`);
-    console.log(`  Workflows: ${target.workflows}`);
-    console.log(`  Skills:    ${target.skills} (skill-*, agent-*)`);
+    console.log(`  Agents:    ${target.agents} (agent-*)`);
+    console.log(`  Skills:    ${target.skills} (skill-*)`);
 
     // Display skipped skills info
     if (skippedSkills.length > 0 && options.verbose) {
         console.log('');
         console.log(chalk.gray(`ℹ Skipped missing workflow sources`));
     }
+
+    // Display hook-rules activation guidance
+    logHookRulesGuidance();
 }

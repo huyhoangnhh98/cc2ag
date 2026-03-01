@@ -3,11 +3,11 @@ import chalk from 'chalk';
 import ora from 'ora';
 import { ConvertOptions } from '../types.js';
 import { getGlobalSource, getGlobalTarget } from '../utils/paths.js';
-import { exists, listDirs, listFiles, ensureDir, removeDir, writeFile } from '../utils/fs.js';
+import { exists, listDirs, listFiles, ensureDir, removeDir } from '../utils/fs.js';
 import { confirm } from '../utils/prompt.js';
-import { generateWorkflows } from '../converters/workflow.js';
-import { convertAllRules, getClaudeMdContent, getRulesMergedContent, writeGeminiMd } from '../converters/rules.js';
-import { convertAllSkills, convertAllAgents as convertAllClaudeKitSkills } from '../converters/skill.js';
+import { convertAllRules, getClaudeMdContent, getRulesMergedContent, writeGeminiMd, generateConversionLossNotice } from '../converters/rules.js';
+import { convertAllSkills, convertAllAgents as convertAllClaudeKitAgents } from '../converters/skill.js';
+import { generateHookRules, logHookRulesGuidance } from '../converters/hook-rules.js';
 
 export async function convertGlobal(options: ConvertOptions): Promise<void> {
     const source = getGlobalSource();
@@ -49,8 +49,9 @@ export async function convertGlobal(options: ConvertOptions): Promise<void> {
         const cleanSpinner = ora('Cleaning global target directories...').start();
         await removeDir(globalTarget.workflows);
         await removeDir(globalTarget.skills);
+        await removeDir(globalTarget.agents);
         await removeDir(globalTarget.rules);
-        cleanSpinner.succeed('Cleaned global_workflows, skills, and rules');
+        cleanSpinner.succeed('Cleaned global_workflows, skills, agents, and rules');
     }
 
     // Collect skill and agent names for reference updates
@@ -80,24 +81,40 @@ export async function convertGlobal(options: ConvertOptions): Promise<void> {
         if (options.verbose) console.error(error);
     }
 
-    // Generate workflows (brainstorm, plan, cook)
-    const workflowSpinner = ora('Generating workflows...').start();
-    let skippedSkills: string[] = [];
+    // Convert agents
+    const agentSpinner = ora('Converting agents...').start();
     try {
-        await ensureDir(globalTarget.workflows);
-        const workflowResult = await generateWorkflows({
-            skillsPath: source.skills,
-            targetPath: globalTarget.workflows,
+        await ensureDir(globalTarget.agents);
+        const agentCount = await convertAllClaudeKitAgents({
+            sourcePath: source.agents,
+            targetPath: globalTarget.agents,
             skillNames,
             agentNames,
-            context: 'global',
+            context: skillContext,
             dryRun: options.dryRun,
             verbose: options.verbose,
         });
-        workflowSpinner.succeed(`${workflowResult.count} workflows → ${globalTarget.workflows}`);
-        skippedSkills = workflowResult.skippedSkills;
+        agentSpinner.succeed(`${agentCount} agents → ${globalTarget.agents}`);
     } catch (error) {
-        workflowSpinner.fail('Failed to generate workflows');
+        agentSpinner.fail('Failed to convert agents');
+        if (options.verbose) console.error(error);
+    }
+
+    // Generate workflows (brainstorm, plan, cook) - REMOVED
+    // We no longer generate workflows for brainstorm/plan/cook as skills can be called directly
+    let skippedSkills: string[] = [];
+
+    // Generate hook-based rules
+    const hookRulesSpinner = ora('Generating hook-based rules...').start();
+    try {
+        const hookRulesCount = await generateHookRules({
+            targetPath: globalTarget.rules,
+            dryRun: options.dryRun,
+            verbose: options.verbose,
+        });
+        hookRulesSpinner.succeed(`${hookRulesCount} hook rules → ${globalTarget.rules}`);
+    } catch (error) {
+        hookRulesSpinner.fail('Failed to generate hook rules');
         if (options.verbose) console.error(error);
     }
 
@@ -161,6 +178,9 @@ export async function convertGlobal(options: ConvertOptions): Promise<void> {
         if (options.verbose) console.error(error);
     }
 
+    // Add workflow chain and conversion notes to GEMINI.md
+    geminiMdSections.push(generateConversionLossNotice());
+
     // Write final assembled GEMINI.md (CLAUDE.md + rules)
     const geminiSpinner = ora('Writing GEMINI.md...').start();
     try {
@@ -184,12 +204,15 @@ export async function convertGlobal(options: ConvertOptions): Promise<void> {
     console.log('');
     console.log(chalk.cyan('Output:'));
     console.log(`  Rules:     ${globalTarget.rules}`);
-    console.log(`  Workflows: ${globalTarget.workflows}`);
-    console.log(`  Skills:    ${skillTargetPath} (skill-*, agent-*)`);
+    console.log(`  Agents:    ${globalTarget.agents} (agent-*)`);
+    console.log(`  Skills:    ${skillTargetPath} (skill-*)`);
 
     // Display skipped skills info
     if (skippedSkills.length > 0 && options.verbose) {
         console.log('');
         console.log(chalk.gray(`ℹ Skipped missing workflow sources`));
     }
+
+    // Display hook-rules activation guidance
+    logHookRulesGuidance();
 }

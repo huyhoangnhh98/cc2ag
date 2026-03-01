@@ -43,6 +43,20 @@ export async function convertSkillFolder(
         // Update references
         skillContent = updateReferences(skillContent, skillNames, agentNames, options.context || 'project');
 
+        // Replace naming convention hooks with hardcoded path templates since AG has no hooks
+        skillContent = skillContent.replace(
+            /Use the naming pattern from the `## Naming` section injected by hooks[^\.]*\./gi,
+            'Save reports using pattern: `plans/reports/{type}-YYMMDD-HHMM-{slug}.md`'
+        );
+        skillContent = skillContent.replace(
+            /Use the naming pattern from the `## Naming` section in the injected context[^\.]*\./gi,
+            'Save reports using pattern: `plans/reports/{type}-YYMMDD-HHMM-{slug}.md`'
+        );
+        skillContent = skillContent.replace(
+            /Check `## Plan Context` injected by hooks:/gi,
+            'Check for active plan state:'
+        );
+
         // Update name in frontmatter to match folder name
         if (skillContent.trimStart().startsWith('---')) {
             skillContent = skillContent.replace(/^(---[\s\S]*?)(name:\s*).+$/m, `$1$2${skillName}`);
@@ -72,7 +86,7 @@ ${skillContent}`;
         }
     }
 
-    // Special case: references → resources
+    // Special case: rename references to resources
     const referencesDir = path.join(sourceFolder, 'references');
     if (await exists(referencesDir)) {
         if (!options.dryRun) {
@@ -91,7 +105,9 @@ export async function convertAgentToSkill(
     agentNames: string[],
     options: { context?: 'global' | 'project'; dryRun?: boolean; verbose?: boolean } = {}
 ): Promise<void> {
-    const agentName = path.basename(targetFolder);
+    // targetFolder is already agent-{cleanName}, e.g. agent-planner
+    const folderBase = path.basename(targetFolder); // e.g. agent-planner
+    const agentName = folderBase; // used in frontmatter
 
     if (!options.dryRun) {
         await ensureDir(targetFolder);
@@ -103,6 +119,20 @@ export async function convertAgentToSkill(
     content = updateReferences(content, skillNames, agentNames, options.context || 'project');
 
     // Update name in frontmatter to match folder name
+    // Replace naming convention hooks with hardcoded path templates since AG has no hooks
+    content = content.replace(
+        /Use the naming pattern from the `## Naming` section injected by hooks[^\.]*\./gi,
+        'Save reports using pattern: `plans/reports/{type}-YYMMDD-HHMM-{slug}.md`'
+    );
+    content = content.replace(
+        /Use the naming pattern from the `## Naming` section in the injected context[^\.]*\./gi,
+        'Save reports using pattern: `plans/reports/{type}-YYMMDD-HHMM-{slug}.md`'
+    );
+    content = content.replace(
+        /Check `## Plan Context` injected by hooks:/gi,
+        'Check for active plan state:'
+    );
+
     if (content.trimStart().startsWith('---')) {
         content = content.replace(/^(---[\s\S]*?)(name:\s*).+$/m, `$1$2${agentName}`);
     } else {
@@ -116,7 +146,8 @@ ${content}`;
     }
 
     if (!options.dryRun) {
-        await writeFile(path.join(targetFolder, 'SKILL.md'), content);
+        // agentName is already "agent-planner" (folder base), so use as-is for the file
+        await writeFile(path.join(targetFolder, `${agentName}.md`), content);
     }
 }
 
@@ -133,13 +164,15 @@ export async function convertAllSkills(options: SkillConvertOptions): Promise<nu
 
     for (const dir of dirs) {
         const sourceFolder = path.join(sourcePath, dir);
-        const targetFolder = path.join(targetPath, `skill-${dir}`);
+        // Strip existing skill- prefix to avoid double-prefix (skill-brainstorm → brainstorm)
+        const cleanName = dir.replace(/^skill-/, '');
+        const targetFolder = path.join(targetPath, cleanName);
 
         await convertSkillFolder(sourceFolder, targetFolder, skillNames, agentNames, { context, dryRun, verbose });
         count++;
 
         if (verbose) {
-            console.log(`  ✓ ${dir} → skill-${dir}/`);
+            console.log(`  ✓ ${dir} → ${cleanName}/`);
         }
     }
 
@@ -159,14 +192,16 @@ export async function convertAllAgents(options: SkillConvertOptions): Promise<nu
 
     for (const file of files) {
         const agentName = path.basename(file, '.md');
+        // Strip existing agent- prefix to avoid double-prefix (agent-planner → planner)
+        const cleanName = agentName.replace(/^agent-/, '');
         const sourceFile = path.join(sourcePath, file);
-        const targetFolder = path.join(targetPath, `agent-${agentName}`);
+        const targetFolder = path.join(targetPath, `agent-${cleanName}`);
 
         await convertAgentToSkill(sourceFile, targetFolder, skillNames, agentNames, { context, dryRun, verbose });
         count++;
 
         if (verbose) {
-            console.log(`  ✓ ${file} → agent-${agentName}/SKILL.md`);
+            console.log(`  ✓ ${file} → agent-${cleanName}/agent-${cleanName}.md`);
         }
     }
 

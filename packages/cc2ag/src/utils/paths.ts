@@ -40,6 +40,7 @@ export function getGlobalTarget() {
     return {
         workflows: path.join(PATHS.globalAntigravityDir, PATHS.globalWorkflows),
         skills: path.join(PATHS.globalAntigravityDir, PATHS.skills),
+        agents: path.join(PATHS.globalAntigravityDir, PATHS.agents),
         rules: path.join(PATHS.globalAntigravityDir, PATHS.rules),
         geminiMd: path.join(PATHS.globalAntigravityDir, '..', 'GEMINI.md'),
     };
@@ -49,6 +50,7 @@ export function getProjectTarget() {
     return {
         workflows: path.join(PATHS.projectAgentDir, PATHS.workflows),
         skills: path.join(PATHS.projectAgentDir, PATHS.skills),
+        agents: path.join(PATHS.projectAgentDir, PATHS.agents),
         rules: path.join(PATHS.projectAgentDir, PATHS.rules),
         geminiMd: path.join(PATHS.projectAgentDir, 'GEMINI.md'),
     };

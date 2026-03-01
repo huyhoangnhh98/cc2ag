@@ -6,10 +6,10 @@ const GLOBAL_PATH_REPLACEMENTS: [string, string][] = [
     ['~/.claude/workflows', '~/.gemini/antigravity/rules'],
     ['$HOME/.claude/skills', '$HOME/.gemini/antigravity/skills'],
     ['~/.claude/skills', '~/.gemini/antigravity/skills'],
-    ['$HOME/.claude/agents', '$HOME/.gemini/antigravity/skills'],
-    ['~/.claude/agents', '~/.gemini/antigravity/skills'],
+    ['$HOME/.claude/agents', '$HOME/.gemini/antigravity/agents'],
+    ['~/.claude/agents', '~/.gemini/antigravity/agents'],
     ['.claude/skills', '.agent/skills'],
-    ['.claude/agents', '.agent/skills'],
+    ['.claude/agents', '.agent/agents'],
 ];
 
 const PROJECT_PATH_REPLACEMENTS: [string, string][] = [
@@ -17,10 +17,10 @@ const PROJECT_PATH_REPLACEMENTS: [string, string][] = [
     ['.claude/workflows', '.agent/rules'],
     ['$HOME/.claude/skills', '.agent/skills'],
     ['~/.claude/skills', '.agent/skills'],
-    ['$HOME/.claude/agents', '.agent/skills'],
-    ['~/.claude/agents', '.agent/skills'],
+    ['$HOME/.claude/agents', '.agent/agents'],
+    ['~/.claude/agents', '.agent/agents'],
     ['.claude/skills', '.agent/skills'],
-    ['.claude/agents', '.agent/skills'],
+    ['.claude/agents', '.agent/agents'],
 ];
 
 /**
@@ -40,8 +40,8 @@ export function updatePathReferences(content: string, context: 'global' | 'proje
 
 /**
  * Update references in content:
- * - `skill-name` → `skill-skill-name`
- * - `agent-name` → `agent-agent-name`
+ * - `skill-brainstorm` → `brainstorm` (strip skill- prefix, folder has no prefix post-fix)
+ * - `agent-planner` → path to agent-planner/agent-planner.md (clean folder name, no double-prefix)
  * - Convert agent usage patterns to skill activation
  * - Replace Claude paths with Antigravity paths
  */
@@ -56,37 +56,52 @@ export function updateReferences(
     // First update path references (Claude → Antigravity)
     result = updatePathReferences(result, context);
 
-    // Replace skill references: `skill-name` → `skill-skill-name`
+    // Replace skill references: `skill-brainstorm` → `brainstorm` (folder has no skill- prefix post-fix)
     for (const skillName of skillNames) {
         if (skillName) {
+            const cleanName = skillName.replace(/^skill-/, '');
             const regex = new RegExp(`\`${escapeRegex(skillName)}\``, 'g');
-            result = result.replace(regex, `\`skill-${skillName}\``);
+            result = result.replace(regex, `\`${cleanName}\``);
         }
     }
 
-    // Replace agent references: `agent-name` → `agent-agent-name`
+    // Replace agent references: `agent-planner` → path to agent (folder is agent-planner, no double-prefix)
     for (const agentName of agentNames) {
         if (agentName) {
+            const cleanName = agentName.replace(/^agent-/, '');
             const regex = new RegExp(`\`${escapeRegex(agentName)}\``, 'g');
-            result = result.replace(regex, `\`agent-${agentName}\``);
+            const agentPath = context === 'global'
+                ? `$HOME/.gemini/antigravity/agents/agent-${cleanName}/agent-${cleanName}.md`
+                : `.agent/agents/agent-${cleanName}/agent-${cleanName}.md`;
+            result = result.replace(regex, `\`${agentPath}\``);
         }
     }
 
-    // Convert agent usage patterns to skill activation patterns
-    // Pattern: "use `agent-xxx` agent" → "Activate `agent-xxx` skill"
-    result = result.replace(/[Uu]se (`agent-[^`]+`) agents?/g, 'Activate $1 skill');
+    // Convert agent usage patterns to load instructions
+    // Pattern: "use `agent-xxx` agent" → "Load `agent-xxx` instructions"
+    // Since we've replaced the backticks with path earlier, we need to match the original or new format
+    result = result.replace(/[Uu]se (`agent-[^`]+`) agents?/g, 'Load $1 instructions');
+    result = result.replace(/[Uu]se (`[^`]+\/agents\/[^`]+`) agents?/g, 'Load $1 instructions');
 
-    // Pattern: "`agent-xxx` subagent" → "`agent-xxx` skill"
-    result = result.replace(/(`agent-[^`]+`) subagents?/g, '$1 skill');
+    // Pattern: "`agent-xxx` subagent" → "`agent-xxx` instructions"
+    result = result.replace(/(`agent-[^`]+`) subagents?/g, '$1 instructions');
+    result = result.replace(/(`[^`]+\/agents\/[^`]+`) subagents?/g, '$1 instructions');
 
-    // Pattern: "spawn `agent-xxx`" → "Activate `agent-xxx` skill"
-    result = result.replace(/[Ss]pawn (`agent-[^`]+`)/g, 'Activate $1 skill');
+    // Pattern: "spawn `agent-xxx`" → "Load `agent-xxx` instructions"
+    result = result.replace(/[Ss]pawn (`agent-[^`]+`)/g, 'Load $1 instructions');
+    result = result.replace(/[Ss]pawn (`[^`]+\/agents\/[^`]+`)/g, 'Load $1 instructions');
 
-    // Pattern: "invoke `agent-xxx`" → "Activate `agent-xxx` skill"
-    result = result.replace(/[Ii]nvoke (`agent-[^`]+`)/g, 'Activate $1 skill');
+    // Pattern: "invoke `agent-xxx`" → "Load `agent-xxx` instructions"
+    result = result.replace(/[Ii]nvoke (`agent-[^`]+`)/g, 'Load $1 instructions');
+    result = result.replace(/[Ii]nvoke (`[^`]+\/agents\/[^`]+`)/g, 'Load $1 instructions');
 
-    // Pattern: "launch `agent-xxx`" → "Activate `agent-xxx` skill"
-    result = result.replace(/[Ll]aunch (`agent-[^`]+`)/g, 'Activate $1 skill');
+    // Pattern: "launch `agent-xxx`" → "Load `agent-xxx` instructions"
+    result = result.replace(/[Ll]aunch (`agent-[^`]+`)/g, 'Load $1 instructions');
+    result = result.replace(/[Ll]aunch (`[^`]+\/agents\/[^`]+`)/g, 'Load $1 instructions');
+
+    // Map WebSearch to native capabilities
+    result = result.replace(/`WebSearch` tool/g, "native web search capability");
+    result = result.replace(/WebSearch tool/g, "native web search capability");
 
     // Convert slash command format: /xxx:yyy → /xxx-yyy (Antigravity format)
     // Match patterns like /ipa:validate, /plan:hard, /docs:sync, etc.
@@ -97,6 +112,13 @@ export function updateReferences(
 
     // Replace /ck-[command] with /[command]
     result = result.replace(/\/ck-([a-z0-9-]+)/g, '/$1');
+
+    // Replace occurrences of "references" directory to "resources" directory
+    result = result.replace(/([/\\'`"]|^)references([/\\'`"]|$)/g, '$1resources$2');
+
+    // Replace skill execution commands `/skill-[skill-name]` to just `/[skill-name]`
+    // since Antigravity handles them properly when the `skill-` prefix is stripped during slash command input.
+    result = result.replace(/\/skill-([a-z0-9-]+)/g, '/$1');
 
     return result;
 }
@@ -122,8 +144,8 @@ export function generateActivationBlock(skills: string[], agents: string[]): str
 
     // Add agents first (they usually contain personas)
     for (const agent of agents) {
-        if (!lines.includes(`Activate \`${agent}\` skill.`)) {
-            lines.push(`Activate \`${agent}\` skill.`);
+        if (!lines.includes(`Load \`${agent}\` instructions.`)) {
+            lines.push(`Load \`${agent}\` instructions.`);
         }
     }
 
