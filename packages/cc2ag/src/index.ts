@@ -8,7 +8,7 @@ import { uninstall } from './commands/uninstall.js';
 import { autoUpdate, checkAndPromptUpdate } from './utils/update-checker.js';
 
 const program = new Command();
-const CLI_VERSION = '1.3.2';
+const CLI_VERSION = '1.3.3';
 
 program
     .name('cc2ag')
