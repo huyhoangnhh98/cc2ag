@@ -11,7 +11,7 @@ const program = new Command();
 program
     .name('cc2ag')
     .description('Convert Claude Code configurations to Antigravity format')
-    .version('1.2.3');
+    .version('1.3.0');
 
 program
     .command('global')
@@ -19,6 +19,9 @@ program
     .option('--dry-run', 'Preview changes without writing')
     .option('--force', 'Overwrite existing files')
     .option('--verbose', 'Show detailed output')
+    .option('--clean', 'Clean target directories before converting')
+    .option('--fresh', 'Clean and convert fresh (removes existing)')
+    .option('-y, --yes', 'Skip confirmation prompts')
     .action(async (options) => {
         console.log(chalk.cyan('╔════════════════════════════════════════════════════════════╗'));
         console.log(chalk.cyan('║     cc2ag: Claude Code → Antigravity Converter             ║'));
@@ -34,6 +37,8 @@ program
     .option('--force', 'Overwrite existing files')
     .option('--verbose', 'Show detailed output')
     .option('--clean', 'Clean target directories before converting')
+    .option('--fresh', 'Clean and convert fresh (removes existing)')
+    .option('-y, --yes', 'Skip confirmation prompts')
     .action(async (options) => {
         console.log(chalk.cyan('╔════════════════════════════════════════════════════════════╗'));
         console.log(chalk.cyan('║     cc2ag: Claude Code → Antigravity Converter             ║'));
@@ -49,6 +54,8 @@ program
     .option('--force', 'Overwrite existing files')
     .option('--verbose', 'Show detailed output')
     .option('--clean', 'Clean target directories before converting')
+    .option('--fresh', 'Clean and convert fresh (removes existing)')
+    .option('-y, --yes', 'Skip confirmation prompts')
     .action(async (options) => {
         console.log(chalk.cyan('╔════════════════════════════════════════════════════════════╗'));
         console.log(chalk.cyan('║     cc2ag: Claude Code → Antigravity Converter             ║'));
@@ -78,4 +85,3 @@ program.parse(process.argv);
 if (!process.argv.slice(2).length) {
     program.outputHelp();
 }
-

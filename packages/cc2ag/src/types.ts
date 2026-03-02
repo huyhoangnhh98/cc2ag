@@ -4,6 +4,8 @@ export interface ConvertOptions {
     verbose?: boolean;
     globalSkills?: boolean;
     clean?: boolean;
+    fresh?: boolean;  // Clean and convert fresh (removes existing)
+    yes?: boolean;    // Skip confirmation prompts
 }
 
 export interface SkillInfo {
@@ -22,5 +24,17 @@ export interface ConversionResult {
     workflowsConverted: number;
     skillsConverted: number;
     agentsConverted: number;
+    rulesConverted: number;
+    claudeMdConverted: boolean;
     errors: string[];
+}
+
+export interface RulesConvertOptions {
+    sourcePath: string;
+    targetPath: string;
+    skillNames: string[];
+    agentNames: string[];
+    context: 'global' | 'project';
+    dryRun?: boolean;
+    verbose?: boolean;
 }

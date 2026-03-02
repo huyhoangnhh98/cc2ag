@@ -38,13 +38,12 @@ cc2ag both
 |-------------|-------------|----------|
 | `commands/*.md` | `workflows/*.md` | Global: `~/.gemini/antigravity/global_workflows/`<br>Project: `.agent/workflows/` |
 | `skills/*/` | `skill-*/SKILL.md` | Project: `.agent/skills/` |
-| `agents/*.md` | `agent-*/SKILL.md` | Project: `.agent/skills/` |
+| `agents/*.md` | `{agent-name}/SKILL.md` | Global: `~/.gemini/antigravity/agents/`<br>Project: `.agent/agents/` |
 
 ### Key Features
 
 - **Auto-adds activation blocks** - Workflows automatically include `Activate skill` statements
-- **Reference updates** - Converts `planner` → `agent-planner`, `planning` → `skill-planning`
-- **Skill-only in project** - Skills/agents always go to `.agent/skills/` (Antigravity requirement)
+- **Reference updates** - Converts `agent-planner` → `$HOME/.gemini/antigravity/agents/planner`, `planning` → `skill-planning`
 
 ## Examples
 
@@ -65,12 +64,12 @@ description: Workflow converted from Claude Code command
 ---
 
 <!-- Skill Activation Block -->
-Activate `agent-researcher` skill.
-Activate `agent-planner` skill.
+Load `$HOME/.gemini/antigravity/agents/researcher` instructions.
+Load `$HOME/.gemini/antigravity/agents/planner` instructions.
 Activate `skill-planning` skill.
 
-Use multiple `agent-researcher` skill...
-pass them to `agent-planner` skill...
+Use multiple `$HOME/.gemini/antigravity/agents/researcher` instructions...
+pass them to `$HOME/.gemini/antigravity/agents/planner` instructions...
 ```
 
 ## License

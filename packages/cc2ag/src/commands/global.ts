@@ -4,8 +4,10 @@ import ora from 'ora';
 import { ConvertOptions } from '../types.js';
 import { getGlobalSource, getGlobalTarget } from '../utils/paths.js';
 import { exists, listDirs, listFiles, ensureDir, removeDir } from '../utils/fs.js';
-import { convertAllWorkflows } from '../converters/workflow.js';
-import { convertAllSkills, convertAllAgents } from '../converters/skill.js';
+import { confirm } from '../utils/prompt.js';
+import { convertAllRules, getClaudeMdContent, getRulesMergedContent, writeGeminiMd, generateConversionLossNotice } from '../converters/rules.js';
+import { convertAllSkills, convertAllAgents as convertAllClaudeKitAgents } from '../converters/skill.js';
+import { generateHookRules, logHookRulesGuidance } from '../converters/hook-rules.js';
 
 export async function convertGlobal(options: ConvertOptions): Promise<void> {
     const source = getGlobalSource();
@@ -16,11 +18,30 @@ export async function convertGlobal(options: ConvertOptions): Promise<void> {
     const skillTargetPath = globalTarget.skills;
 
     // Check source exists
-    const sourceExists = await exists(path.dirname(source.commands));
+    const sourceExists = await exists(path.dirname(source.workflows));
     if (!sourceExists) {
         console.log(chalk.red('✗ Global Claude Code directory not found: ~/.claude'));
         console.log(chalk.yellow('  Make sure you have Claude Code installed globally.'));
         return;
+    }
+
+    // Handle --fresh flag (clean + convert with confirmation)
+    if (options.fresh) {
+        console.log(chalk.yellow('⚠ WARNING: --fresh will remove all existing converted content.'));
+        console.log(chalk.yellow(`  Target: ${globalTarget.workflows}`));
+        console.log(chalk.yellow(`  Target: ${globalTarget.skills}`));
+        console.log(chalk.yellow(`  Target: ${globalTarget.rules}`));
+        console.log('');
+
+        if (!options.yes) {
+            const confirmed = await confirm('Continue?');
+            if (!confirmed) {
+                console.log('Aborted.');
+                return;
+            }
+        }
+
+        options.clean = true; // Enable clean mode
     }
 
     // Clean target directories if --clean flag is set
@@ -28,7 +49,9 @@ export async function convertGlobal(options: ConvertOptions): Promise<void> {
         const cleanSpinner = ora('Cleaning global target directories...').start();
         await removeDir(globalTarget.workflows);
         await removeDir(globalTarget.skills);
-        cleanSpinner.succeed('Cleaned global_workflows and skills');
+        await removeDir(globalTarget.agents);
+        await removeDir(globalTarget.rules);
+        cleanSpinner.succeed('Cleaned global_workflows, skills, agents, and rules');
     }
 
     // Collect skill and agent names for reference updates
@@ -39,24 +62,100 @@ export async function convertGlobal(options: ConvertOptions): Promise<void> {
 
     spinner.succeed(`Found ${skillNames.length} skills, ${agentNames.length} agents`);
 
-    // Convert workflows to global (always use global context for path replacement)
-    const workflowSpinner = ora('Converting workflows to global...').start();
-    let oversizedWorkflows: string[] = [];
+    // Convert CK workflows → AG rules
+    const rulesSpinner = ora('Converting rules...').start();
     try {
-        await ensureDir(globalTarget.workflows);
-        const workflowResult = await convertAllWorkflows({
-            sourcePath: source.commands,
-            targetPath: globalTarget.workflows,
+        await ensureDir(globalTarget.rules);
+        const rulesCount = await convertAllRules({
+            sourcePath: source.workflows,
+            targetPath: globalTarget.rules,
             skillNames,
             agentNames,
             context: 'global',
             dryRun: options.dryRun,
             verbose: options.verbose,
         });
-        workflowSpinner.succeed(`${workflowResult.count} workflows → ${globalTarget.workflows}`);
-        oversizedWorkflows = workflowResult.oversizedFiles;
+        rulesSpinner.succeed(`${rulesCount} rules → ${globalTarget.rules}`);
     } catch (error) {
-        workflowSpinner.fail('Failed to convert workflows');
+        rulesSpinner.fail('Failed to convert rules');
+        if (options.verbose) console.error(error);
+    }
+
+    // Convert agents
+    const agentSpinner = ora('Converting agents...').start();
+    try {
+        await ensureDir(globalTarget.agents);
+        const agentCount = await convertAllClaudeKitAgents({
+            sourcePath: source.agents,
+            targetPath: globalTarget.agents,
+            skillNames,
+            agentNames,
+            context: skillContext,
+            dryRun: options.dryRun,
+            verbose: options.verbose,
+        });
+        agentSpinner.succeed(`${agentCount} agents → ${globalTarget.agents}`);
+    } catch (error) {
+        agentSpinner.fail('Failed to convert agents');
+        if (options.verbose) console.error(error);
+    }
+
+    // Generate workflows (brainstorm, plan, cook) - REMOVED
+    // We no longer generate workflows for brainstorm/plan/cook as skills can be called directly
+    let skippedSkills: string[] = [];
+
+    // Generate hook-based rules
+    const hookRulesSpinner = ora('Generating hook-based rules...').start();
+    try {
+        const hookRulesCount = await generateHookRules({
+            targetPath: globalTarget.rules,
+            dryRun: options.dryRun,
+            verbose: options.verbose,
+        });
+        hookRulesSpinner.succeed(`${hookRulesCount} hook rules → ${globalTarget.rules}`);
+    } catch (error) {
+        hookRulesSpinner.fail('Failed to generate hook rules');
+        if (options.verbose) console.error(error);
+    }
+
+    // Collect GEMINI.md content sections (assembled at the end)
+    const geminiMdSections: string[] = [];
+
+    // Get CLAUDE.md content for GEMINI.md
+    const claudeSpinner = ora('Converting CLAUDE.md → GEMINI.md...').start();
+    try {
+        const claudeContent = await getClaudeMdContent(
+            source.claudeMd, skillNames, agentNames, 'global'
+        );
+        if (claudeContent) {
+            geminiMdSections.push(claudeContent);
+            claudeSpinner.succeed('CLAUDE.md content collected');
+        } else {
+            claudeSpinner.info('No CLAUDE.md found, skipping');
+        }
+    } catch (error) {
+        claudeSpinner.fail('Failed to convert CLAUDE.md');
+        if (options.verbose) console.error(error);
+    }
+
+    // Get merged rules content for GEMINI.md (always loaded)
+    const rulesMergeSpinner = ora('Merging rules into GEMINI.md...').start();
+    try {
+        const rulesContent = await getRulesMergedContent({
+            sourcePath: source.workflows,
+            targetPath: globalTarget.rules,
+            skillNames,
+            agentNames,
+            context: 'global',
+        });
+        if (rulesContent) {
+            geminiMdSections.push(rulesContent);
+            rulesMergeSpinner.succeed('Rules merged into GEMINI.md');
+        } else {
+            rulesMergeSpinner.info('No rules to merge');
+        }
+    } catch (error) {
+        rulesMergeSpinner.fail('Failed to merge rules');
         if (options.verbose) console.error(error);
     }
 
@@ -79,22 +178,22 @@ export async function convertGlobal(options: ConvertOptions): Promise<void> {
         if (options.verbose) console.error(error);
     }
 
-    // Convert agents
-    const agentSpinner = ora(`Converting agents to ${skillContext}...`).start();
+    // Add workflow chain and conversion notes to GEMINI.md
+    geminiMdSections.push(generateConversionLossNotice());
+
+    // Write final assembled GEMINI.md (CLAUDE.md + rules)
+    const geminiSpinner = ora('Writing GEMINI.md...').start();
     try {
-        await ensureDir(skillTargetPath);
-        const agentCount = await convertAllAgents({
-            sourcePath: source.agents,
-            targetPath: skillTargetPath,
-            skillNames,
-            agentNames,
-            context: skillContext,
-            dryRun: options.dryRun,
-            verbose: options.verbose,
-        });
-        agentSpinner.succeed(`${agentCount} agents → ${skillTargetPath}`);
+        const written = await writeGeminiMd(
+            globalTarget.geminiMd, geminiMdSections, options.dryRun
+        );
+        if (written) {
+            geminiSpinner.succeed(`GEMINI.md → ${globalTarget.geminiMd}`);
+        } else {
+            geminiSpinner.info('No content for GEMINI.md');
+        }
     } catch (error) {
-        agentSpinner.fail('Failed to convert agents');
+        geminiSpinner.fail('Failed to write GEMINI.md');
         if (options.verbose) console.error(error);
     }
 
@@ -104,16 +203,16 @@ export async function convertGlobal(options: ConvertOptions): Promise<void> {
     console.log(chalk.green('╚════════════════════════════════════════════════════════════╝'));
     console.log('');
     console.log(chalk.cyan('Output:'));
-    console.log(`  Workflows: ${globalTarget.workflows}`);
-    console.log(`  Skills:    ${skillTargetPath} (skill-*, agent-*)`);
+    console.log(`  Rules:     ${globalTarget.rules}`);
+    console.log(`  Agents:    ${globalTarget.agents} (agent-*)`);
+    console.log(`  Skills:    ${skillTargetPath} (skill-*)`);
 
-    // Display warnings for oversized workflows
-    if (oversizedWorkflows.length > 0) {
+    // Display skipped skills info
+    if (skippedSkills.length > 0 && options.verbose) {
         console.log('');
-        console.log(chalk.yellow('⚠ WARNING: The following workflows exceed Antigravity\'s 12000 character limit:'));
-        for (const file of oversizedWorkflows) {
-            console.log(chalk.yellow(`   - ${file}`));
-        }
-        console.log(chalk.yellow('   Consider refactoring large workflows into smaller skill references.'));
+        console.log(chalk.gray(`ℹ Skipped missing workflow sources`));
     }
+
+    // Display hook-rules activation guidance
+    logHookRulesGuidance();
 }
