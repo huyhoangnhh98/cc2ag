@@ -5,13 +5,15 @@ import { convertGlobal } from './commands/global.js';
 import { convertProject } from './commands/project.js';
 import { convertBoth } from './commands/both.js';
 import { uninstall } from './commands/uninstall.js';
+import { autoUpdate, checkAndPromptUpdate } from './utils/update-checker.js';
 
 const program = new Command();
+const CLI_VERSION = '1.3.2';
 
 program
     .name('cc2ag')
     .description('Convert Claude Code configurations to Antigravity format')
-    .version('1.3.0');
+    .version(CLI_VERSION);
 
 program
     .command('global')
@@ -78,6 +80,27 @@ program
         console.log('');
         await uninstall(options);
     });
+
+program
+    .command('update')
+    .description('Update cc2ag to the latest version')
+    .action(async () => {
+        console.log(chalk.cyan('╔════════════════════════════════════════════════════════════╗'));
+        console.log(chalk.cyan('║     cc2ag: Update Tool                                     ║'));
+        console.log(chalk.cyan('╚════════════════════════════════════════════════════════════╝'));
+        console.log('');
+        const success = await autoUpdate('@huyhoangnhh98/cc2ag');
+        process.exit(success ? 0 : 1);
+    });
+
+// Check for updates after command execution
+program.hook('postAction', async () => {
+    // Only check on non-update commands to avoid double updates
+    const command = process.argv[2];
+    if (command !== 'update') {
+        await checkAndPromptUpdate(CLI_VERSION, '@huyhoangnhh98/cc2ag');
+    }
+});
 
 // Default command shows help
 program.parse(process.argv);
