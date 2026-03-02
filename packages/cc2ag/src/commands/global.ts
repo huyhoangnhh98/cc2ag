@@ -5,7 +5,7 @@ import { ConvertOptions } from '../types.js';
 import { getGlobalSource, getGlobalTarget } from '../utils/paths.js';
 import { exists, listDirs, listFiles, ensureDir, removeDir } from '../utils/fs.js';
 import { confirm } from '../utils/prompt.js';
-import { convertAllRules, getClaudeMdContent, getRulesMergedContent, writeGeminiMd, generateConversionLossNotice } from '../converters/rules.js';
+import { convertAllRules, getClaudeMdContent, getRulesMergedContent, writeGeminiMd, generateConversionLossNotice, generateSkillLoggingSection } from '../converters/rules.js';
 import { convertAllSkills, convertAllAgents as convertAllClaudeKitAgents } from '../converters/skill.js';
 import { generateHookRules, logHookRulesGuidance } from '../converters/hook-rules.js';
 
@@ -178,7 +178,8 @@ export async function convertGlobal(options: ConvertOptions): Promise<void> {
         if (options.verbose) console.error(error);
     }
 
-    // Add workflow chain and conversion notes to GEMINI.md
+    // Add skill activation logging, conversion notes to GEMINI.md
+    geminiMdSections.push(generateSkillLoggingSection());
     geminiMdSections.push(generateConversionLossNotice());
 
     // Write final assembled GEMINI.md (CLAUDE.md + rules)

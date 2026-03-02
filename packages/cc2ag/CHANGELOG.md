@@ -2,7 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.3.4] - 2026-03-02
+
+### Added
+- Skill Activation Logging section now included in generated `GEMINI.md` when running `cc2ag global`
+- Model is instructed to output `[SKILL] Activating: {skill-name} — Reason: {why}` before every skill/agent activation, making it easy to trace which skills are called and why
+
+## [1.3.3] - 2026-03-02
+
+### Changed
+- Version sync with npm publish
+
 ## [1.3.2] - 2026-03-01
+
 
 ### Changed
 - Converted agents are now saved as `agent-name/agent-name.md` instead of `SKILL.md` to prevent AG from loading them into the skills menu.

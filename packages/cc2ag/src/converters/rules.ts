@@ -143,3 +143,30 @@ The following rules were converted from Claude Code hooks and need manual activa
 Set activation modes via: Customizations panel → Rules → Edit each rule.
 `;
 }
+
+/**
+ * Generate skill activation logging section for GEMINI.md.
+ * Instructs the model to log every skill/agent activation for traceability.
+ */
+export function generateSkillLoggingSection(): string {
+    return `
+## Skill Activation Logging
+
+Before activating any skill or sub-agent, you MUST output a one-line log in this exact format:
+
+\`\`\`
+[SKILL] Activating: {skill-name} — Reason: {why}
+\`\`\`
+
+**Examples:**
+\`\`\`
+[SKILL] Activating: scout — Reason: Discovering relevant files and code patterns
+[SKILL] Activating: sequential-thinking — Reason: Complex multi-step problem requires structured analysis
+[SKILL] Activating: agent-planner — Reason: Creating implementation plan for feature request
+[SKILL] Activating: docs-seeker — Reason: Looking up latest API docs for external library
+[SKILL] Activating: brainstorm — Reason: Exploring architecture options and trade-offs
+\`\`\`
+
+This logging is MANDATORY to help users trace which skills are being activated and why. Do not skip this log line under any circumstances.
+`;
+}
